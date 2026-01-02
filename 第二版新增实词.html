@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文言文虚实词背诵</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "SimSun", "KaiTi", "STKaiti", "STSong", serif;
+            background-color: #F8F6F2;
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px rgba(26, 71, 49, 0.15);
+        }
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+        }
+        .sidebar-hidden {
+            transform: translateX(100%);
+        }
+        .overlay {
+            transition: opacity 0.3s ease-in-out;
+        }
+        /* 3D翻转卡片样式 */
+        .flip-card {
+            perspective: 1000px;
+            cursor: pointer;
+            position: relative;
+        }
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        .flip-card.flipped .flip-card-inner {
+            transform: rotateY(180deg);
+        }
+        .flip-card-front, .flip-card-back {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 0.5rem;
+            box-sizing: border-box;
+        }
+        .flip-card-back {
+            transform: rotateY(180deg);
+        }
+        .flip-card-front {
+            cursor: pointer;
+        }
+        .flip-card-front:hover {
+            box-shadow: 0 20px 25px -5px rgba(26, 71, 49, 0.1), 0 10px 10px -5px rgba(26, 71, 49, 0.04);
+            transition: box-shadow 0.2s ease;
+        }
+        .flip-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #1A4731;
+            font-size: 14px;
+            opacity: 0.7;
+            pointer-events: none;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 0.7;
+            }
+            50% {
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 顶部搜索框 -->
+    <header class="bg-[#1A4731] text-white py-6 px-4 shadow-lg">
+        <div class="max-w-4xl mx-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-2xl md:text-3xl font-bold">文言文虚实词背诵</h1>
+                <button id="enterMemorizeBtn" class="bg-white text-[#1A4731] px-6 py-2 rounded-lg font-bold hover:bg-gray-100 transition-colors shadow-md">
+                    实战推断
+                </button>
+            </div> 
+            <div class="relative" id="searchContainer">
+                <input 
+                    type="text" 
+                    id="searchInput"
+                    placeholder="搜索词条（仅匹配词语本身，如：之、其、以），回车或空格分词" 
+                    class="w-full px-6 py-4 text-lg rounded-lg bg-white text-[#1A4731] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 shadow-md"
+                >
+                <svg class="absolute right-4 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+            <div class="mt-4 flex items-center gap-3">
+                <div class="text-white text-sm">数据集：</div>
+                <button id="datasetXuBtn" class="px-3 py-1 bg-[#1A4731] text-white rounded">虚词</button>
+                <button id="datasetShiBtn" class="px-3 py-1 bg-white text-[#1A4731] rounded">实词</button>
+            </div> 
+        </div>
+    </header>
+
+    <!-- 词语卡片区域 -->
+    <main id="mainView" class="max-w-6xl mx-auto px-4 py-8">
+        <div id="wordCards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            <!-- 卡片将通过 JavaScript 动态生成 -->
+        </div>
+        <div id="noResults" class="hidden text-center py-12 text-gray-500 text-lg">
+            未找到相关词语
+        </div>
+    </main>
+
+    <!-- 模式选择界面 -->
+    <div id="modeSelectView" class="hidden min-h-screen flex flex-col items-center justify-center px-4 py-8">
+        <div class="w-full max-w-2xl">
+            <div class="bg-white rounded-lg shadow-xl p-8 md:p-12 border-4 border-[#1A4731]">
+                <h2 class="text-3xl font-bold text-[#1A4731] mb-8 text-center">选择练习模式</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <button id="mode1Btn" class="mode-btn bg-[#F8F6F2] border-4 border-[#1A4731] rounded-lg p-6 hover:bg-[#1A4731] hover:text-white transition-all">
+                        <h3 class="text-2xl font-bold mb-3">模式一：挖空填词</h3>
+                        <p class="text-gray-700 hover:text-white">例句中隐藏目标词，选择正确的词填入空白处（支持实词与虚词）</p>
+                    </button>
+                    <button id="mode2Btn" class="mode-btn bg-[#F8F6F2] border-4 border-[#1A4731] rounded-lg p-6 hover:bg-[#1A4731] hover:text-white transition-all">
+                        <h3 class="text-2xl font-bold mb-3">模式二：词性推断</h3>
+                        <p class="text-gray-700 hover:text-white">显示完整句子，选择目标词的词性和意思（支持实词与虚词）</p>
+                    </button>
+                </div>
+                <button id="backToMainBtn" class="mt-6 w-full text-[#1A4731] hover:text-[#1A4731]/80 font-bold flex items-center justify-center">
+                    <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    返回主页
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 实战推断模式视图 -->
+    <div id="memorizeView" class="hidden min-h-screen flex flex-col items-center justify-center px-4 py-8">
+        <div class="w-full max-w-3xl flex flex-col">
+            <!-- 进度条和返回按钮 -->
+            <div class="w-full mb-6 flex-shrink-0">
+                <div class="flex justify-between items-center mb-2">
+                    <div class="flex items-center gap-4">
+                        <button id="exitMemorizeBtn" class="text-[#1A4731] hover:text-[#1A4731]/80 font-bold flex items-center">
+                            <svg class="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                            返回
+                        </button>
+                        <button id="switchModeBtn" class="text-[#1A4731] hover:text-[#1A4731]/80 font-bold text-sm border border-[#1A4731] px-3 py-1 rounded">
+                            切换模式
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="currentModeLabel" class="text-sm text-gray-600"></span>
+                        <span id="progressText" class="text-[#1A4731] font-bold text-lg">1/10</span>
+                    </div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progressBar" class="bg-[#1A4731] h-2 rounded-full transition-all duration-300" style="width: 10%"></div>
+                </div>
+            </div>
+
+            <!-- 例句显示区域 -->
+            <div class="w-full mb-6 flex-shrink-0">
+                <div class="bg-white rounded-lg shadow-xl p-6 md:p-8 border-4 border-[#1A4731]">
+                    <p class="text-xl md:text-2xl text-gray-800 leading-relaxed text-center" id="exampleSentence">
+                        <!-- 例句将通过 JavaScript 动态生成 -->
+                    </p>
+                </div>
+            </div>
+
+            <!-- 选项区域 -->
+            <div class="w-full mb-6 flex-shrink-0">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="optionsContainer">
+                    <!-- 选项将通过 JavaScript 动态生成 -->
+                </div>
+            </div>
+
+            <!-- 解析区域（选对后显示） -->
+            <div id="explanationArea" class="w-full mb-6 flex-shrink-0 hidden">
+                <div class="bg-[#F8F6F2] rounded-lg shadow-lg p-6 border-l-4 border-[#1A4731]">
+                    <h3 class="text-lg font-bold text-[#1A4731] mb-4">完整解析</h3>
+                    <div id="explanationContent" class="text-gray-800">
+                        <!-- 解析内容将通过 JavaScript 动态生成 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 下一题按钮 -->
+            <div class="w-full flex-shrink-0">
+                <button id="nextBtn" class="w-full bg-[#1A4731] text-white py-4 rounded-lg font-bold text-lg hover:bg-[#1A4731]/90 transition-colors shadow-md hidden">
+                    下一题
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 侧边栏详情弹窗 -->
+    <div id="overlay" class="overlay fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
+    <div id="sidebar" class="sidebar sidebar-hidden fixed top-0 right-0 h-full w-full md:w-96 bg-white z-50 shadow-2xl overflow-y-auto">
+        <div class="sticky top-0 bg-[#1A4731] text-white p-4 flex justify-between items-center">
+            <h2 id="detailTitle" class="text-xl font-bold"></h2>
+            <button id="closeSidebar" class="text-white hover:text-gray-200 text-2xl font-bold">&times;</button>
+        </div>
+        <div id="detailContent" class="p-6 text-gray-800">
+            <!-- 详情内容将通过 JavaScript 动态生成 -->
+        </div>
+    </div>
+
+    <!-- 登录/注册功能已移除 -->
+
+    <script src="shi-full.js"></script>
+
+    <script>
+        // 词库数据
+        const wordData = [
+            {
+                word: "之",
+                meanings: [
+                    { usage: "代词", meaning: "他、她、它（们）", example: "学而时习之，不亦说乎？" },
+                    { usage: "助词", meaning: "的", example: "古之学者必有师。" },
+                    { usage: "助词", meaning: "取消句子独立性", example: "师道之不传也久矣！" },
+                    { usage: "动词", meaning: "到、往", example: "吾欲之南海，何如？" },
+                    { usage: "助词", meaning: "宾语前置标志", example: "何陋之有？" }
+                ]
+            },
+            {
+                word: "其",
+                meanings: [
+                    { usage: "代词", meaning: "他（她、它）的；他（她、它）们的", example: "其志洁，其行廉。" },
+                    { usage: "代词", meaning: "其中的", example: "其一犬坐于前。" },
+                    { usage: "副词", meaning: "大概、或许", example: "其皆出于此乎？" },
+                    { usage: "连词", meaning: "如果、假如", example: "其若是，孰能御之？" },
+                    { usage: "语气词", meaning: "表反问或推测", example: "其真无马邪？其真不知马也！" }
+                ]
+            },
+            {
+                word: "以",
+                meanings: [
+                    { usage: "介词", meaning: "用、拿、凭借", example: "以子之矛，陷子之盾，何如？" },
+                    { usage: "介词", meaning: "因为、由于", example: "不以物喜，不以己悲。" },
+                    { usage: "连词", meaning: "来、用来", example: "属予作文以记之。" },
+                    { usage: "连词", meaning: "而、而且", example: "夫夷以近，则游者众。" },
+                    { usage: "动词", meaning: "认为", example: "皆以美于徐公。" }
+                ]
+            },
+            {
+                word: "而",
+                meanings: [
+                    { usage: "连词", meaning: "表并列", example: "永州之野产异蛇，黑质而白章。" },
+                    { usage: "连词", meaning: "表转折", example: "青，取之于蓝，而青于蓝。" },
+                    { usage: "连词", meaning: "表顺承", example: "余闻而愈悲。" },
+                    { usage: "连词", meaning: "表修饰", example: "吾尝跂而望矣，不如登高之博见也。" },
+                    { usage: "代词", meaning: "你、你的", example: "而翁归，自与汝复算耳！" }
+                ]
+            },
+            {
+                word: "于",
+                meanings: [
+                    { usage: "介词", meaning: "在、到", example: "战于长勺。" },
+                    { usage: "介词", meaning: "向、对", example: "告之于帝。" },
+                    { usage: "介词", meaning: "比", example: "冰，水为之，而寒于水。" },
+                    { usage: "介词", meaning: "从、自", example: "青，取之于蓝。" },
+                    { usage: "介词", meaning: "被", example: "吾不能举全吴之地，十万之众，受制于人。" }
+                ]
+            },
+            {
+                word: "则",
+                meanings: [
+                    { usage: "连词", meaning: "就、那么", example: "学而不思则罔，思而不学则殆。" },
+                    { usage: "连词", meaning: "如果、假如", example: "入则无法家拂士，出则无敌国外患者，国恒亡。" },
+                    { usage: "连词", meaning: "却、可是", example: "至则无可用，放之山下。" },
+                    { usage: "名词", meaning: "法则、准则", example: "此则岳阳楼之大观也。" }
+                ]
+            },
+            {
+                word: "乃",
+                meanings: [
+                    { usage: "副词", meaning: "于是、就", example: "乃入见。" },
+                    { usage: "副词", meaning: "才", example: "今乃弃黔首以资敌国。" },
+                    { usage: "副词", meaning: "竟然、却", example: "问今是何世，乃不知有汉。" },
+                    { usage: "代词", meaning: "你、你的", example: "家祭无忘告乃翁。" },
+                    { usage: "判断词", meaning: "是、就是", example: "当立者乃公子扶苏。" }
+                ]
+            },
+            {
+                word: "者",
+                meanings: [
+                    { usage: "助词", meaning: "的人、的事、的东西", example: "得道者多助，失道者寡助。" },
+                    { usage: "助词", meaning: "表停顿", example: "北山愚公者，年且九十。" },
+                    { usage: "助词", meaning: "定语后置标志", example: "求人可使报秦者，未得。" },
+                    { usage: "代词", meaning: "这、这样", example: "者回，者次，者般。" }
+                ]
+            },
+            {
+                word: "乎",
+                meanings: [
+                    { usage: "语气词", meaning: "吗、呢（表疑问）", example: "学而时习之，不亦说乎？" },
+                    { usage: "语气词", meaning: "吧（表推测）", example: "其皆出于此乎？" },
+                    { usage: "语气词", meaning: "啊（表感叹）", example: "危乎高哉！" },
+                    { usage: "介词", meaning: "于、在", example: "生乎吾前，其闻道也固先乎吾。" }
+                ]
+            },
+            {
+                word: "焉",
+                meanings: [
+                    { usage: "代词", meaning: "它、他、哪里", example: "且焉置土石？" },
+                    { usage: "语气词", meaning: "了、啊", example: "寒暑易节，始一反焉。" },
+                    { usage: "兼词", meaning: "于之、于此", example: "积土成山，风雨兴焉。" },
+                    { usage: "疑问代词", meaning: "哪里、怎么", example: "焉有仁人在位，罔民而可为也？" }
+                ]
+            }
+        ];
+
+        // 当前激活数据（默认为虚词）
+        let activeData = wordData;
+
+        // 渲染卡片
+        function renderCards(words) {
+            const container = document.getElementById('wordCards');
+            const noResults = document.getElementById('noResults');
+            
+            if (words.length === 0) {
+                container.innerHTML = '';
+                noResults.classList.remove('hidden');
+                return;
+            }
+            
+            noResults.classList.add('hidden');
+            container.innerHTML = words.map(word => `
+                <div class="card-hover bg-white rounded-lg shadow-md p-6 cursor-pointer border-l-4 border-[#1A4731]" 
+                     onclick="showDetail('${word.word}')">
+                    <h3 class="text-2xl font-bold text-[#1A4731] mb-2">${word.word}</h3>
+                    <p class="text-gray-600 text-sm">${word.meanings.length} 种用法</p>
+                </div>
+            `).join('');
+        }
+
+        // 数据集切换与导入
+        function switchDataset(type) {
+            const xuBtn = document.getElementById('datasetXuBtn');
+            const shiBtn = document.getElementById('datasetShiBtn');
+            const base = 'px-3 py-1 rounded';
+            const selected = 'bg-white text-[#1A4731]';
+            const unselected = 'bg-[#1A4731] text-white';
+
+            if (type === 'shi') {
+                // 使用内置 shiData（在 shi.js）
+                if (typeof window.shiData === 'undefined') window.shiData = [];
+                activeData = window.shiData;
+                // 明确设置 className，避免类冲突
+                xuBtn.className = `${base} ${unselected}`;
+                shiBtn.className = `${base} ${selected}`;
+            } else {
+                activeData = wordData;
+                xuBtn.className = `${base} ${selected}`;
+                shiBtn.className = `${base} ${unselected}`;
+            }
+
+            renderCards(activeData);
+        }
+
+
+
+        // 显示详情
+        function showDetail(word) {
+            // 优先从当前激活数据查找（支持虚词与实词），并做容错
+            const wordInfo = (activeData || []).find(w => w.word === word);
+            if (!wordInfo) return;
+
+            const title = document.getElementById('detailTitle');
+            const content = document.getElementById('detailContent');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+
+            title.textContent = wordInfo.word;
+            content.innerHTML = wordInfo.meanings.map((m, index) => `
+                <div class="mb-6 pb-6 border-b border-gray-200 last:border-b-0">
+                    <div class="flex items-center mb-3">
+                        <span class="bg-[#1A4731] text-white px-3 py-1 rounded text-sm font-bold">${m.usage}</span>
+                        <span class="ml-3 text-lg font-semibold text-gray-800">${m.meaning}</span>
+                    </div>
+                    <div class="bg-[#F8F6F2] p-4 rounded-lg border-l-4 border-[#1A4731]">
+                        <p class="text-gray-700 italic">${m.example}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            sidebar.classList.remove('sidebar-hidden');
+            overlay.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // 关闭侧边栏
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.add('sidebar-hidden');
+            overlay.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // 搜索功能（改进：仅在词条本身匹配，按空格分词，所有关键字需匹配）
+        function handleSearch() {
+            const raw = document.getElementById('searchInput').value.trim();
+            const searchTerm = raw.toLowerCase();
+            // 按空格分词，短词或单词将被单独匹配；空输入返回全部
+            const tokens = searchTerm.split(/\s+/).filter(Boolean);
+            const norm = s => (s || '').toLowerCase();
+
+            if (tokens.length === 0) {
+                renderCards(activeData);
+                return;
+            }
+
+            const filtered = (activeData || []).filter(word => {
+                // 仅在词条本身（word.word）匹配，每个 token 均需匹配（AND）
+                return tokens.every(tok => norm(word.word).includes(tok));
+            });
+
+            renderCards(filtered);
+        }
+
+        // 实战推断模式相关变量
+        let practiceMode = false;
+        let currentMode = 1; // 1: 挖空填词, 2: 词性推断
+        let currentQuestion = null;
+        let questionCount = 0;
+        let correctCount = 0;
+        let answered = false;
+
+        // 进入实战推断模式（显示模式选择）
+        function enterMemorizeMode() {
+            document.getElementById('mainView').classList.add('hidden');
+            document.getElementById('modeSelectView').classList.remove('hidden');
+            document.getElementById('searchContainer').classList.add('hidden');
+            document.getElementById('enterMemorizeBtn').classList.add('hidden');
+        }
+
+        // 选择模式并开始练习
+        function startPracticeMode(mode) {
+            currentMode = mode;
+            practiceMode = true;
+            questionCount = 0;
+            correctCount = 0;
+            answered = false;
+            
+            document.getElementById('modeSelectView').classList.add('hidden');
+            document.getElementById('memorizeView').classList.remove('hidden');
+            
+            updateModeLabel();
+            generateQuestion();
+        }
+
+        // 切换模式
+        function switchMode() {
+            if (confirm('确定要切换模式吗？当前进度将重置。')) {
+                startPracticeMode(currentMode === 1 ? 2 : 1);
+            }
+        }
+
+        // 更新模式标签
+        function updateModeLabel() {
+            const label = document.getElementById('currentModeLabel');
+            label.textContent = currentMode === 1 ? '模式一：挖空填词' : '模式二：词性推断';
+        }
+
+        // 退出实战推断模式
+        function exitMemorizeMode() {
+            practiceMode = false;
+            document.getElementById('mainView').classList.remove('hidden');
+            document.getElementById('memorizeView').classList.add('hidden');
+            document.getElementById('modeSelectView').classList.add('hidden');
+            document.getElementById('searchContainer').classList.remove('hidden');
+            document.getElementById('enterMemorizeBtn').classList.remove('hidden');
+        }
+
+        // 返回主页
+        function backToMain() {
+            document.getElementById('mainView').classList.remove('hidden');
+            document.getElementById('modeSelectView').classList.add('hidden');
+            document.getElementById('searchContainer').classList.remove('hidden');
+            document.getElementById('enterMemorizeBtn').classList.remove('hidden');
+        }
+
+        // 生成题目
+        function generateQuestion() {
+            answered = false;
+            
+            // 确保当前激活数据存在
+            if (!activeData || activeData.length === 0) {
+                alert('当前数据集为空，无法生成题目');
+                return;
+            }
+
+            // 随机选择一个词语
+            const randomWord = activeData[Math.floor(Math.random() * activeData.length)];
+            
+            // 随机选择该词语的一个用法
+            const randomMeaning = randomWord.meanings[Math.floor(Math.random() * randomWord.meanings.length)];
+            
+            // 获取例句
+            const example = randomMeaning.example;
+            const keyword = randomWord.word;
+            
+            // 隐藏关键词，用下划线替代
+            const hiddenExample = example.replace(new RegExp(keyword, 'g'), '_____');
+            
+            // 生成选项（1个正确答案 + 3个干扰项）
+            const options = generateOptions(randomWord, randomMeaning);
+            
+            // 保存当前题目信息
+            const correctIndex = options.findIndex(opt => opt.isCorrect);
+            currentQuestion = {
+                word: randomWord.word,
+                correctMeaning: randomMeaning,
+                example: example,
+                hiddenExample: hiddenExample,
+                options: options,
+                correctIndex: correctIndex
+            };
+            
+            // 显示题目
+            displayQuestion();
+        }
+
+        // 生成选项
+        function generateOptions(correctWord, correctMeaning) {
+            if (currentMode === 1) {
+                // 模式1：挖空填虚词 - 选项是虚词名称
+                const options = [correctWord.word];
+                
+                // 收集所有其他虚词作为干扰项
+                const pool = (activeData || wordData);
+                const otherWords = pool
+                    .filter(w => w.word !== correctWord.word)
+                    .map(w => w.word);
+                
+                // 随机选择3个干扰项
+                const shuffled = otherWords.sort(() => 0.5 - Math.random());
+                for (let i = 0; i < 3 && i < shuffled.length; i++) {
+                    options.push(shuffled[i]);
+                }
+                
+                // 打乱选项顺序
+                return options.sort(() => 0.5 - Math.random()).map(word => ({
+                    word: word,
+                    isCorrect: word === correctWord.word
+                }));
+            } else {
+                // 模式2：词性推断 - 选项是词性和意思的组合
+                const options = [{
+                    word: correctWord.word,
+                    usage: correctMeaning.usage,
+                    meaning: correctMeaning.meaning,
+                    displayText: `${correctMeaning.usage}：${correctMeaning.meaning}`
+                }];
+                
+                // 收集所有其他用法作为干扰项
+                const allMeanings = [];
+                (activeData || wordData).forEach(word => {
+                    word.meanings.forEach(meaning => {
+                        if (word.word !== correctWord.word || meaning.usage !== correctMeaning.usage || meaning.meaning !== correctMeaning.meaning) {
+                            allMeanings.push({
+                                word: word.word,
+                                usage: meaning.usage,
+                                meaning: meaning.meaning,
+                                displayText: `${meaning.usage}：${meaning.meaning}`
+                            });
+                        }
+                    });
+                });
+                
+                // 随机选择3个干扰项
+                const shuffled = allMeanings.sort(() => 0.5 - Math.random());
+                for (let i = 0; i < 3 && i < shuffled.length; i++) {
+                    options.push(shuffled[i]);
+                }
+                
+                // 打乱选项顺序
+                return options.sort(() => 0.5 - Math.random()).map(opt => ({
+                    ...opt,
+                    isCorrect: opt.word === correctWord.word && opt.usage === correctMeaning.usage && opt.meaning === correctMeaning.meaning
+                }));
+            }
+        }
+
+        // 显示题目
+        function displayQuestion() {
+            // 显示例句（模式1显示挖空的，模式2显示完整的）
+            const sentenceText = currentMode === 1 ? currentQuestion.hiddenExample : currentQuestion.example;
+            document.getElementById('exampleSentence').innerHTML = sentenceText;
+            
+            // 显示选项
+            const optionsContainer = document.getElementById('optionsContainer');
+            if (currentMode === 1) {
+                // 模式1：显示虚词名称
+                optionsContainer.innerHTML = currentQuestion.options.map((option, index) => {
+                    const optionLabel = String.fromCharCode(65 + index); // A, B, C, D
+                    return `
+                        <button 
+                            class="option-btn bg-white border-2 border-[#1A4731] rounded-lg p-6 text-center hover:bg-[#F8F6F2] hover:shadow-md transition-all cursor-pointer active:scale-95"
+                            data-index="${index}"
+                        >
+                            <span class="bg-[#1A4731] text-white w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold mr-3 inline-flex">${optionLabel}</span>
+                            <span class="text-4xl font-bold text-[#1A4731]">${option.word}</span>
+                        </button>
+                    `;
+                }).join('');
+            } else {
+                // 模式2：显示词性和意思
+                optionsContainer.innerHTML = currentQuestion.options.map((option, index) => {
+                    const optionLabel = String.fromCharCode(65 + index); // A, B, C, D
+                    return `
+                        <button 
+                            class="option-btn bg-white border-2 border-[#1A4731] rounded-lg p-4 text-left hover:bg-[#F8F6F2] hover:shadow-md transition-all cursor-pointer active:scale-95"
+                            data-index="${index}"
+                        >
+                            <div class="flex items-center mb-2">
+                                <span class="bg-[#1A4731] text-white w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0">${optionLabel}</span>
+                                <span class="text-sm font-semibold text-gray-600">${option.usage}</span>
+                            </div>
+                            <p class="text-gray-800 ml-11">${option.meaning}</p>
+                        </button>
+                    `;
+                }).join('');
+            }
+            
+            // 使用事件委托绑定点击事件
+            optionsContainer.querySelectorAll('.option-btn').forEach((btn, index) => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    selectOption(parseInt(this.getAttribute('data-index')));
+                });
+            });
+            
+            // 隐藏解析和下一题按钮
+            document.getElementById('explanationArea').classList.add('hidden');
+            document.getElementById('nextBtn').classList.add('hidden');
+            
+            // 更新进度
+            updateProgress();
+        }
+
+        // 选择选项
+        function selectOption(selectedIndex) {
+            if (!practiceMode || !currentQuestion || answered) {
+                return;
+            }
+            
+            answered = true;
+            const isCorrect = selectedIndex === currentQuestion.correctIndex;
+            
+            // 更新选项按钮样式
+            const optionButtons = document.querySelectorAll('.option-btn');
+            optionButtons.forEach((btn, index) => {
+                btn.disabled = true;
+                btn.style.pointerEvents = 'none';
+                if (index === currentQuestion.correctIndex) {
+                    btn.classList.remove('border-[#1A4731]', 'hover:bg-[#F8F6F2]');
+                    btn.classList.add('border-green-500', 'bg-green-50');
+                } else if (index === selectedIndex && !isCorrect) {
+                    btn.classList.remove('border-[#1A4731]', 'hover:bg-[#F8F6F2]');
+                    btn.classList.add('border-red-500', 'bg-red-50');
+                } else {
+                    btn.classList.add('opacity-50');
+                }
+            });
+            
+            questionCount++;
+            if (isCorrect) {
+                correctCount++;
+                // 选对后显示完整解析
+                showExplanation();
+            } else {
+                // 选错后只显示正确答案，不显示完整解析
+                showCorrectAnswerOnly();
+            }
+        }
+
+        // 只显示正确答案（选错时）
+        function showCorrectAnswerOnly() {
+            const explanationContent = document.getElementById('explanationContent');
+            
+            explanationContent.innerHTML = `
+                <div class="mb-4">
+                    <p class="text-lg mb-2"><strong>完整例句：</strong></p>
+                    <p class="text-xl text-[#1A4731] font-semibold mb-4">${currentQuestion.example}</p>
+                </div>
+                <div>
+                    <p class="text-lg mb-2"><strong>正确答案：</strong></p>
+                    <div class="flex items-center mb-2">
+                        <span class="text-2xl font-bold text-[#1A4731] mr-3">${currentQuestion.word}</span>
+                        <span class="bg-[#1A4731] text-white px-3 py-1 rounded text-sm font-bold">${currentQuestion.correctMeaning.usage}</span>
+                        <span class="ml-3 text-lg font-semibold text-gray-800">${currentQuestion.correctMeaning.meaning}</span>
+                    </div>
+                </div>
+                <p class="text-gray-600 mt-4 italic">答错了！选对后才能查看完整解析。</p>
+            `;
+            
+            document.getElementById('explanationArea').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
+        }
+
+        // 显示解析
+        function showExplanation() {
+            const wordInfo = activeData.find(w => w.word === currentQuestion.word);
+            const explanationContent = document.getElementById('explanationContent');
+            
+            explanationContent.innerHTML = `
+                <div class="mb-4">
+                    <p class="text-lg mb-2"><strong>完整例句：</strong></p>
+                    <p class="text-xl text-[#1A4731] font-semibold mb-4">${currentQuestion.example}</p>
+                </div>
+                <div class="mb-4">
+                    <p class="text-lg mb-2"><strong>正确答案：</strong></p>
+                    <div class="flex items-center mb-2">
+                        <span class="text-2xl font-bold text-[#1A4731] mr-3">${currentQuestion.word}</span>
+                        <span class="bg-[#1A4731] text-white px-3 py-1 rounded text-sm font-bold">${currentQuestion.correctMeaning.usage}</span>
+                        <span class="ml-3 text-lg font-semibold text-gray-800">${currentQuestion.correctMeaning.meaning}</span>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-lg mb-2"><strong>该词的其他用法：</strong></p>
+                    ${wordInfo.meanings.map(m => `
+                        <div class="mb-3 pb-3 border-b border-gray-200 last:border-b-0">
+                            <div class="flex items-center mb-1">
+                                <span class="bg-gray-600 text-white px-2 py-1 rounded text-xs font-bold">${m.usage}</span>
+                                <span class="ml-2 text-sm text-gray-700">${m.meaning}</span>
+                            </div>
+                            <p class="text-sm text-gray-600 italic ml-1">${m.example}</p>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            
+            document.getElementById('explanationArea').classList.remove('hidden');
+            document.getElementById('nextBtn').classList.remove('hidden');
+        }
+
+        // 下一题
+        function nextQuestion() {
+            generateQuestion();
+        }
+
+        // 更新进度
+        function updateProgress() {
+            const total = (activeData || wordData).length * 2; // 假设总共做一定数量的题目
+            const percentage = questionCount > 0 ? (questionCount / total) * 100 : 0;
+            
+            document.getElementById('progressText').textContent = `第 ${questionCount} 题 (正确率: ${questionCount > 0 ? Math.round(correctCount / questionCount * 100) : 0}%)`;
+            document.getElementById('progressBar').style.width = `${Math.min(percentage, 100)}%`;
+        }
+
+        // 事件监听
+        document.getElementById('searchInput').addEventListener('input', handleSearch);
+        document.getElementById('closeSidebar').addEventListener('click', closeSidebar);
+        document.getElementById('overlay').addEventListener('click', closeSidebar);
+        document.getElementById('datasetXuBtn').addEventListener('click', () => switchDataset('xu'));
+        document.getElementById('datasetShiBtn').addEventListener('click', () => switchDataset('shi'));
+        // 注：导入功能已移除，实词数据为内置资源（shi.js）
+        
+        // 实战推断模式事件监听
+        document.getElementById('enterMemorizeBtn').addEventListener('click', enterMemorizeMode);
+        document.getElementById('exitMemorizeBtn').addEventListener('click', exitMemorizeMode);
+        document.getElementById('nextBtn').addEventListener('click', nextQuestion);
+        document.getElementById('switchModeBtn').addEventListener('click', switchMode);
+        
+        // 模式选择事件监听
+        document.getElementById('mode1Btn').addEventListener('click', () => startPracticeMode(1));
+        document.getElementById('mode2Btn').addEventListener('click', () => startPracticeMode(2));
+        document.getElementById('backToMainBtn').addEventListener('click', backToMain);
+
+        // 初始化渲染：两个按钮均为绿底（未选中），点击后选中变白
+        const base = 'px-3 py-1 rounded';
+        const unselected = 'bg-[#1A4731] text-white';
+        document.getElementById('datasetXuBtn').className = `${base} ${unselected}`;
+        document.getElementById('datasetShiBtn').className = `${base} ${unselected}`;
+        renderCards(activeData);
+    </script>
+</body>
+</html>
+
